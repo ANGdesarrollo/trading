@@ -52,8 +52,10 @@ ma_function(source, length) =>
 a = ma_function(ta.tr(true), length) * m
 x = ma_function(ta.tr(true), length) * m + src1
 x2 = src2 - ma_function(ta.tr(true), length) * m
+
 p1_atr = plot(x, title='ATR Short Stop Loss', color=colshort, trackprice=pline ? true : false, transp=20)
 p2_atr = plot(x2, title='ATR Long Stop Loss', color=collong, trackprice=pline ? true : false, transp=20)
+
 var table Table = table.new(position.bottom_center, 3, 1, border_width=3)
 f_fillCell(_table, _column, _row, _value, _timeframe) =>
     _cellText = _timeframe + str.tostring(_value, '#.#')
@@ -74,47 +76,46 @@ plot(basis, "Basis", color=color.orange)
 p2 = plot(lower_band, "Lower", color=color.blue)
 fill(p1, p2, color=color.rgb(33, 150, 243, 95), title="Background")
 // EMA plot on the H4 chart with varying colors
+is_ema_inside_bollinger = (lower_band < exponential_moving_average) and (exponential_moving_average < upper_band)
 ema_color = exponential_moving_average > upper_band ? color.red : exponential_moving_average < lower_band ? color.green : color.purple
 plot(exponential_moving_average, title="Daily EMA", color=ema_color, linewidth=2)
 
 /// Conditions to go long
-buy_condition = low <= lower_band and exponential_moving_average < lower_band
+open_long_condition = low < lower_band and exponential_moving_average < lower_band
 
 // Conditions to go short
-sell_condition = high >= upper_band and exponential_moving_average > upper_band
+open_short_condition = high > upper_band and exponential_moving_average > upper_band
 
 // Conditions to close the long position
-close_buy_condition = close >= basis
+close_long_condition = high >= upper_band
 
 // Conditions to close the short position
-close_sell_condition = close <= basis
+close_short_condition = low <= lower_band
 
-float stop_loss_long = na
-float stop_loss_short = na
-// Go long
-if (buy_condition)
-    stop_loss_long := close - x2
-    strategy.entry("buy_entry", strategy.long, comment="buy_entry", stop=stop_loss_long)
-// Go short
-if (sell_condition)
-    stop_loss_short := close + x
-    strategy.entry("sell_entry", strategy.short, comment="sell_entry", stop=stop_loss_short)
-// Close the long position if the closure condition is met
-if (close_buy_condition)
-    strategy.close("buy_entry")
-// Close the short position if the closure condition is met
-if (close_sell_condition)
-    strategy.close("sell_entry")
+close_half_condition_short = low <= basis
+close_half_condition_long = high >= basis
+
+id_long_entry = "long"
+
+float stop_loss_price_long = na
+
+in_market = false
+
+// Long strategy
+
+if (open_long_condition and not in_market)
+    stop_loss_price_long := x2
+    in_market := true
+    strategy.entry(id = id_long_entry, direction = strategy.long, qty = na, comment = "Long")
+    strategy.exit(id=id_long_entry, from_entry = id_long_entry, stop = stop_loss_price_long, comment = "Stop loss")
+
+if(close_half_condition_long)
+    strategy.exit(id = id_long_entry, from_entry = id_long_entry, qty_percent = 50, profit = basis)
+
+if (close_long_condition)
+    in_market := false
+    strategy.close(id_long_entry, qty_percent = 100, comment = "Take profit")
 
 
+// Short strategy
 
-// THIS STOP LOSS DOESNT WORK AS EXPECTED
-
-// Add stop-loss for long positions
-if (close <= stop_loss_long)
-    stop_loss_long := na
-    strategy.close("buy_entry", comment="STOP LOSS")
-// Add stop-loss for short positions
-if (close >= stop_loss_short)
-    stop_loss_short := na
-    strategy.close("sell_entry", comment="STOP LOSS")
